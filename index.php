@@ -6,24 +6,15 @@ header('Content-Type: text/html; charset=utf-8');
 
 class STEMResultsPortal {
     private $csv_data = null;
-    private $upload_dir = 'uploads/';
-    private $current_file = null;
+    private $csv_file_path = 'results.csv';
     
     public function __construct() {
-        // Create uploads directory if it doesn't exist
-        if (!file_exists($this->upload_dir)) {
-            mkdir($this->upload_dir, 0755, true);
-        }
-        
-        // Try to load any existing file
-        $this->loadExistingData();
+        $this->loadCSVData();
     }
     
-    private function loadExistingData() {
-        $files = glob($this->upload_dir . '*.csv');
-        if (!empty($files)) {
-            $this->current_file = $files[0]; // Load the most recent file
-            $this->loadCSVFromFile($this->current_file);
+    private function loadCSVData() {
+        if (file_exists($this->csv_file_path)) {
+            $this->loadCSVFromFile($this->csv_file_path);
         }
     }
     
@@ -128,28 +119,18 @@ class STEMResultsPortal {
                 throw new Exception("Could not read uploaded file");
             }
             
-            // Generate unique filename
-            $timestamp = date('Y-m-d_H-i-s');
-            $safe_filename = preg_replace('/[^a-zA-Z0-9_-]/', '', $file_info['filename']);
-            $new_filename = $safe_filename . '_' . $timestamp . '.csv';
-            $new_file_path = $this->upload_dir . $new_filename;
-            
-            // Save the file
-            if (file_put_contents($new_file_path, $file_content) === false) {
+            // Save as results.csv in the same directory
+            if (file_put_contents($this->csv_file_path, $file_content) === false) {
                 throw new Exception("Could not save CSV file");
             }
             
-            // Remove old files to save space
-            $this->cleanOldFiles();
-            
             // Process the new file
-            $this->current_file = $new_file_path;
             $this->processCSVContent($file_content);
             
             return [
                 'success' => true,
                 'message' => 'CSV file uploaded and processed successfully',
-                'filename' => $new_filename,
+                'filename' => 'results.csv',
                 'rows' => count($this->csv_data),
                 'columns' => !empty($this->csv_data) ? array_keys($this->csv_data[0]) : []
             ];
@@ -162,18 +143,7 @@ class STEMResultsPortal {
         }
     }
     
-    private function cleanOldFiles() {
-        $files = glob($this->upload_dir . '*.csv');
-        if (count($files) > 5) { // Keep only last 5 files
-            usort($files, function($a, $b) {
-                return filemtime($b) - filemtime($a);
-            });
-            
-            for ($i = 5; $i < count($files); $i++) {
-                unlink($files[$i]);
-            }
-        }
-    }
+    // Remove the cleanOldFiles method since we're only keeping one file
     
     private function findColumn($keywords) {
         if (empty($this->csv_data)) return null;
@@ -290,8 +260,8 @@ class STEMResultsPortal {
         $stats = [
             'has_data' => !empty($this->csv_data),
             'total_students' => empty($this->csv_data) ? 0 : count($this->csv_data),
-            'current_file' => $this->current_file,
-            'upload_dir' => $this->upload_dir
+            'csv_file_path' => $this->csv_file_path,
+            'file_exists' => file_exists($this->csv_file_path)
         ];
         
         if (!empty($this->csv_data)) {
@@ -491,9 +461,9 @@ class STEMResultsPortal {
                 <div class="upload-section" id="uploadSection">
                     <h3>📂 Upload Results CSV</h3>
                     <p>Export your "results" Google Sheet as CSV and upload it here</p>
-                    <p><small>Supported: CSV files from Google Sheets, Excel, or any spreadsheet software</small></p>
+                    <p><small>File will be saved as "results.csv" in the same directory</small></p>
                     <input type="file" id="csvFile" accept=".csv,.txt" />
-                    <button onclick="uploadFile()" id="uploadBtn">📤 Upload & Process CSV</button>
+                    <button onclick="uploadFile()" id="uploadBtn">📤 Replace results.csv</button>
                     <div id="uploadResult"></div>
                 </div>
                 
@@ -502,7 +472,7 @@ class STEMResultsPortal {
                     <strong>📊 Current Data:</strong><br>
                     📈 Students: ' . $stats['total_students'] . '<br>
                     📋 Columns: ' . (isset($stats['columns']) ? implode(', ', array_slice($stats['columns'], 0, 4)) . (count($stats['columns']) > 4 ? '...' : '') : 'None') . '<br>
-                    📄 File: ' . basename($stats['current_file'] ?? 'None') . '
+                    📄 File: results.csv ' . ($stats['file_exists'] ? '✅' : '❌') . '
                 </div>
                 
                 <div class="search-section">
